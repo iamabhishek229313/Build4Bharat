@@ -1,9 +1,5 @@
 import cv2
-from gtts import gTTS
-from io import BytesIO
-import pygame
-from playsound import playsound
-import os
+import pyttsx3
 import numpy as np
 import pytesseract 
 
@@ -12,9 +8,18 @@ language = 'en'
 custom_config = r'--oem 3 --psm 6'
 pytesseract.image_to_string(img,config = custom_config)
 
-#Pre-Processing the Image .
-#-- To get the grey scale image 
-# DOCS -- https://docs.opencv.org/2.4/modules/imgproc/doc/miscellaneous_transformations.html
+#Speaking Engine .
+engine = pyttsx3.init()
+print(engine.getProperty('rate'))
+engine.setProperty('rate' , 150)
+voices = engine.getProperty('voices')
+engine.setProperty('voice',voices[0].id)
+
+def speakSomething(text):
+    engine.say(text)
+    engine.runAndWait()
+
+#Image Maipulation Channel .
 def get_grayscale(image):
     return cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
 
@@ -47,45 +52,28 @@ def deskew(image):
     rotated = cv2.wrapAffine(image,M,(w,h),flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
     return rotated
 
-#gray = get_grayscale(img)
-
 
 h, w, c = img.shape
-
-box = pytesseract.image_to_data(img,output_type="dict")
-words = len(box['level'])
-wix = box['text']
-print(wix)
-
-#pygame.init()
-strings = 0
-text = ''
-for i in range (len(wix)):
-    if wix[i] != '' :
-        text = text + " " + wix[i]
-        strings = strings + 1 
-        #if strings < 4 :
-        #    strings = 4if strings < 4:strings = 4 
-    if strings > 3:
-        print(strings)
-        strings = 0
-        myObj = gTTS(text=text , lang = language,slow=False)
-        temp = BytesIO()
-        myObj.write_to_fp(temp)
-        temp.seek(0)
-        pygame.mixer.init()
-        pygame.mixer.music.load(temp)
-        pygame.mixer.music.play()
-        text = " "
-        #myObj.save('spell.mp3')
-        
-        #os.remove('spell.mp3')
-
+word = '' 
+stringData = pytesseract.image_to_data(img,output_type="dict")
+words = len(stringData['level'])
 # Rest of the part is for the ViewPort of the Image
 for i in range (words):
-    (x,y,w,h) = (box['left'][i] , box['top'][i],box['width'][i] , box['height'][i])
+    (x,y,w,h) = (stringData['left'][i] , stringData['top'][i],stringData['width'][i] , stringData['height'][i])
     cv2.rectangle(img,(x,y),(x+w,y+h),(0,255,0),1)
-
 cv2.imshow('img', img)
-cv2.waitKey(0)
-cv2.destoryAllWindows()
+
+#To text
+lengthOfData = len(stringData['text'])
+firstPhase = True
+sentence = ''
+for i in range(lengthOfData):
+    if stringData['word_num'][i] != 0 :
+        sentence = sentence + " " + stringData['text'][i]
+        if firstPhase:
+            firstPhase = False 
+    elif stringData['word_num'][i] == 0 and not firstPhase:
+        speakSomething(sentence)
+        sentence = ""
+        print("beep")
+engine.stop()
